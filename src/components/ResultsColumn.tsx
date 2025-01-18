@@ -26,7 +26,7 @@ const ResultsColumn = ({ title, items, onVote }: ResultsColumnProps) => {
   const animationFrameRef = useRef<number | null>(null);
   const scrollPositionRef = useRef(0);
 
-  const scrollSpeed = 1; // Adjust scroll speed (pixels per frame)
+  const scrollSpeed = 0.5; // Adjust scroll speed (pixels per frame)
 
   const startScrolling = () => {
     if (!scrollContainerRef.current || !scrollContentRef.current) return;
