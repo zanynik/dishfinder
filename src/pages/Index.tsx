@@ -7,7 +7,7 @@ const Index = () => {
       <div 
         className="bg-gradient-to-r from-[#FDE1D3] to-[#F2FCE2] p-8 shadow-lg mb-8"
         style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)), url('https://images.unsplash.com/photo-1495195134817-aeb325a55b65?ixlib=rb-1.2.1&auto=format&fit=crop&w=1500&q=80')`,
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0.1)), url('/images/background_banner.avif')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}

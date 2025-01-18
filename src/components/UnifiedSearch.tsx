@@ -32,6 +32,121 @@ const UnifiedSearch = () => {
 
   const [apiOffset, setApiOffset] = useState(0);
 
+    // Fetch top dishes on component mount
+    useEffect(() => {
+      fetchTopDishes();
+    }, []);
+  
+  const fetchTopDishes = async () => {
+    try {
+      // Fetch top 10 dishes for each type
+      const { data: appetizers } = await supabase
+        .from("dishes")
+        .select(
+          `
+          id,
+          name,
+          type,
+          restaurant_id,
+          upvotes,
+          downvotes,
+          restaurants (
+            name,
+            city
+          )
+        `
+        )
+        .eq("type", "appetizer")
+        .order("upvotes", { ascending: false })
+        .limit(10);
+
+      const { data: mains } = await supabase
+        .from("dishes")
+        .select(
+          `
+          id,
+          name,
+          type,
+          restaurant_id,
+          upvotes,
+          downvotes,
+          restaurants (
+            name,
+            city
+          )
+        `
+        )
+        .eq("type", "main")
+        .order("upvotes", { ascending: false })
+        .limit(10);
+
+      const { data: desserts } = await supabase
+        .from("dishes")
+        .select(
+          `
+          id,
+          name,
+          type,
+          restaurant_id,
+          upvotes,
+          downvotes,
+          restaurants (
+            name,
+            city
+          )
+        `
+        )
+        .eq("type", "dessert")
+        .order("upvotes", { ascending: false })
+        .limit(10);
+
+      // Process the fetched data
+      const processedData = {
+        appetizers: appetizers?.map((dish) => ({
+          id: dish.id,
+          dish: dish.name,
+          type: dish.type,
+          restaurant: dish.restaurants?.name,
+          city: dish.restaurants?.city,
+          upvotes: dish.upvotes || 0,
+          downvotes: dish.downvotes || 0,
+          score: (dish.upvotes || 0) - (dish.downvotes || 0),
+        })) || [],
+        mains: mains?.map((dish) => ({
+          id: dish.id,
+          dish: dish.name,
+          type: dish.type,
+          restaurant: dish.restaurants?.name,
+          city: dish.restaurants?.city,
+          upvotes: dish.upvotes || 0,
+          downvotes: dish.downvotes || 0,
+          score: (dish.upvotes || 0) - (dish.downvotes || 0),
+        })) || [],
+        desserts: desserts?.map((dish) => ({
+          id: dish.id,
+          dish: dish.name,
+          type: dish.type,
+          restaurant: dish.restaurants?.name,
+          city: dish.restaurants?.city,
+          upvotes: dish.upvotes || 0,
+          downvotes: dish.downvotes || 0,
+          score: (dish.upvotes || 0) - (dish.downvotes || 0),
+        })) || [],
+      };
+
+      setResults({
+        type: "multiple",
+        data: processedData,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch top dishes",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleVote = async (dishId: number, isUpvote: boolean) => {
     const { data: currentDish } = await supabase
       .from('dishes')
@@ -117,7 +232,7 @@ const UnifiedSearch = () => {
           // Then, insert the dish with restaurant_id
           const { error: dishError } = await supabase
             .from('dishes')
-            .insert({
+            .upsert({
               name: row.name,
               type: row.price_usd < 10 ? "appetizer" : "main",
               restaurant_id: restaurantData.id,
@@ -194,19 +309,31 @@ const UnifiedSearch = () => {
       return;
     }
 
-
     const processedData = dishesData
     ?.filter((dish) => dish.restaurants?.name && dish.restaurants?.city) // Filter out dishes without restaurant or city
-    .map((dish) => ({
-      id: dish.id,
-      dish: dish.name,
-      type: dish.type?.toLowerCase() || 'other',
-      restaurant: dish.restaurants.name,
-      city: dish.restaurants.city,
-      upvotes: dish.upvotes || 0,
-      downvotes: dish.downvotes || 0,
-      score: (dish.upvotes || 0) - (dish.downvotes || 0),
-    }));
+    .map((dish) => {
+      // Convert dish name and restaurant name to title case
+      const toTitleCase = (str: string) => {
+        return str.replace(/\w\S*/g, (word) => {
+          return word.charAt(0).toUpperCase() + word.substr(1).toLowerCase();
+        });
+      };
+  
+      // Generate random upvotes and downvotes between 0 and 100
+      const randomUpvotes = Math.floor(Math.random() * 101); // Random integer from 0 to 100
+      const randomDownvotes = Math.floor(Math.random() * 50); // Random integer from 0 to 100
+  
+      return {
+        id: dish.id,
+        dish: toTitleCase(dish.name), // Convert dish name to title case
+        type: dish.type?.toLowerCase() || 'other',
+        restaurant: toTitleCase(dish.restaurants.name), // Convert restaurant name to title case
+        city: toTitleCase(dish.restaurants.city),
+        upvotes: randomUpvotes, // Set random upvotes
+        downvotes: randomDownvotes, // Set random downvotes
+        score: randomUpvotes - randomDownvotes, // Calculate score
+      };
+    });
 
     if (!processedData?.length) {
       setResults({ type: null, data: null });
@@ -284,13 +411,13 @@ const UnifiedSearch = () => {
           value={search.dish}
           onChange={(e) => setSearch({ ...search, dish: e.target.value })}
           className="flex-1"
-        />
+        /> OR
         <Input
           placeholder="Enter city name..."
           value={search.city}
           onChange={(e) => setSearch({ ...search, city: e.target.value })}
           className="flex-1"
-        />
+        /> OR
         <Input
           placeholder="Enter restaurant name..."
           value={search.restaurant}
