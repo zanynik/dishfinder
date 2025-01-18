@@ -428,7 +428,7 @@ const UnifiedSearch = () => {
       </div>
 
       {results.type === 'multiple' && (
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <ResultsColumn 
             title="Appetizers" 
             items={results.data.appetizers} 
