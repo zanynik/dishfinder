@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const AddForm = () => {
   const { toast } = useToast();
@@ -12,19 +13,61 @@ const AddForm = () => {
     category: "appetizer",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would add to a database
-    toast({
-      title: "Added Successfully",
-      description: "The restaurant/dish has been added to our database.",
-    });
-    setFormData({
-      city: "",
-      restaurant: "",
-      dish: "",
-      category: "appetizer",
-    });
+    
+    try {
+      // First, insert or get the restaurant
+      const { data: restaurantData, error: restaurantError } = await supabase
+        .from('restaurants')
+        .upsert(
+          {
+            name: formData.restaurant,
+            city: formData.city
+          },
+          { onConflict: 'name' }
+        )
+        .select()
+        .single();
+
+      if (restaurantError) {
+        throw restaurantError;
+      }
+
+      // Then insert the dish with the restaurant_id
+      const { error: dishError } = await supabase
+        .from('dishes')
+        .insert({
+          name: formData.dish,
+          type: formData.category,
+          restaurant_id: restaurantData.id,
+          upvotes: 0,
+          downvotes: 0
+        });
+
+      if (dishError) {
+        throw dishError;
+      }
+
+      toast({
+        title: "Added Successfully",
+        description: "The restaurant and dish have been added to our database.",
+      });
+
+      setFormData({
+        city: "",
+        restaurant: "",
+        dish: "",
+        category: "appetizer",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add the restaurant/dish to the database.",
+        variant: "destructive",
+      });
+      console.error('Error:', error);
+    }
   };
 
   return (

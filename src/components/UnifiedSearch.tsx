@@ -26,9 +26,11 @@ const UnifiedSearch = () => {
   });
 
   const [results, setResults] = useState<{
-    type: "city" | "restaurant" | "dish" | null;
+    type: "city" | "restaurant" | "dish" | "single" | "multiple" | null;
     data: any;
   }>({ type: null, data: null });
+
+  const [apiOffset, setApiOffset] = useState(0);
 
   const handleVote = async (dishId: number, isUpvote: boolean) => {
     const { data: currentDish } = await supabase
@@ -66,8 +68,92 @@ const UnifiedSearch = () => {
     }
   };
 
+  const buildApiQuery = () => {
+    const { dish, city, restaurant } = search;
+    let query = "SELECT name, restaurant_name, identifier, price_usd FROM `menu_items` WHERE 1=1";
+
+    if (dish) {
+      query += ` AND name LIKE '%${dish}%'`;
+    }
+    if (city) {
+      query += ` AND identifier LIKE '%${city}%'`;
+    }
+    if (restaurant) {
+      query += ` AND restaurant_name LIKE '%${restaurant}%'`;
+    }
+
+    query += ` LIMIT 10`;
+    return encodeURIComponent(query);
+  };
+
+  const fetchAndStoreMenuItems = async () => {
+    const query = buildApiQuery();
+    const url = `https://www.dolthub.com/api/v1alpha1/dolthub/menus/master?q=${query}`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.rows && data.rows.length > 0) {
+        for (const row of data.rows) {
+          // First, insert or get restaurant
+          const { data: restaurantData, error: restaurantError } = await supabase
+            .from('restaurants')
+            .upsert(
+              {
+                name: row.restaurant_name,
+                city: row.identifier || 'Unknown'
+              },
+              { onConflict: 'name' }
+            )
+            .select()
+            .single();
+
+          if (restaurantError) {
+            console.error('Error inserting restaurant:', restaurantError);
+            continue;
+          }
+
+          // Then, insert the dish with restaurant_id
+          const { error: dishError } = await supabase
+            .from('dishes')
+            .insert({
+              name: row.name,
+              type: row.price_usd < 10 ? "appetizer" : "main",
+              restaurant_id: restaurantData.id,
+              upvotes: 0,
+              downvotes: 0
+            });
+
+          if (dishError) {
+            console.error('Error inserting dish:', dishError);
+          }
+        }
+
+        toast({
+          title: "Success",
+          description: "Data from API has been stored",
+        });
+        setApiOffset(apiOffset + 10);
+      } else {
+        toast({
+          title: "No data fetched from API",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch data from API",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSearch = async () => {
     const { dish, city, restaurant } = search;
+
+    // Fetch and store data from external API
+    await fetchAndStoreMenuItems();
 
     let query = supabase
       .from('dishes')
