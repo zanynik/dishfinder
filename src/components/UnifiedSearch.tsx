@@ -15,7 +15,7 @@ interface Dish {
   restaurants: {
     name: string;
     city: string;
-  };
+  } | null;
 }
 
 const UnifiedSearch = () => {
@@ -110,10 +110,10 @@ const UnifiedSearch = () => {
     const processedData = dishesData?.map((dish: Dish) => ({
       id: dish.id,
       dish: dish.name,
-      restaurant: dish.restaurants.name,
-      upvotes: dish.upvotes,
-      downvotes: dish.downvotes,
-      score: dish.upvotes - dish.downvotes,
+      restaurant: dish.restaurants?.name || 'Unknown Restaurant',
+      upvotes: dish.upvotes || 0,
+      downvotes: dish.downvotes || 0,
+      score: (dish.upvotes || 0) - (dish.downvotes || 0),
     }));
 
     const groupedData = processedData?.reduce((acc: any, dish: any) => {
