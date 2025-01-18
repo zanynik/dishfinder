@@ -75,9 +75,10 @@ const UnifiedSearch = () => {
         id,
         name,
         type,
+        restaurant_id,
         upvotes,
         downvotes,
-        restaurants!inner (
+        restaurants (
           name,
           city
         )
@@ -95,7 +96,7 @@ const UnifiedSearch = () => {
     if (restaurant) {
       query = query.ilike('restaurants.name', `%${restaurant}%`);
     }
-
+  
     const { data: dishesData, error } = await query;
 
     if (error) {
@@ -107,31 +108,65 @@ const UnifiedSearch = () => {
       return;
     }
 
-    const processedData = dishesData?.map((dish: Dish) => ({
+
+    const processedData = dishesData
+    ?.filter((dish) => dish.restaurants?.name && dish.restaurants?.city) // Filter out dishes without restaurant or city
+    .map((dish) => ({
       id: dish.id,
       dish: dish.name,
-      restaurant: dish.restaurants?.name || 'Unknown Restaurant',
+      type: dish.type?.toLowerCase() || 'other',
+      restaurant: dish.restaurants.name,
+      city: dish.restaurants.city,
       upvotes: dish.upvotes || 0,
       downvotes: dish.downvotes || 0,
       score: (dish.upvotes || 0) - (dish.downvotes || 0),
     }));
 
-    const groupedData = processedData?.reduce((acc: any, dish: any) => {
-      if (!acc[dish.type]) {
-        acc[dish.type] = [];
-      }
-      acc[dish.type].push(dish);
-      return acc;
-    }, {});
+    if (!processedData?.length) {
+      setResults({ type: null, data: null });
+      toast({
+        title: "No results found",
+        description: "Try adjusting your search criteria",
+      });
+      return;
+    }
 
-    setResults({
-      type: restaurant ? 'restaurant' : city ? 'city' : 'dish',
-      data: {
-        appetizers: (groupedData?.appetizer || []).sort((a: any, b: any) => b.score - a.score),
-        mains: (groupedData?.main || []).sort((a: any, b: any) => b.score - a.score),
-        desserts: (groupedData?.dessert || []).sort((a: any, b: any) => b.score - a.score),
-      },
-    });
+    // Get unique types from results
+    const uniqueTypes = [...new Set(processedData.map(dish => dish.type))];
+
+    if (uniqueTypes.length === 1) {
+      // Single type - split into high/low rated
+      const sortedDishes = [...processedData].sort((a, b) => b.score - a.score);
+      const midPoint = Math.ceil(sortedDishes.length / 2);
+      
+      setResults({
+        type: 'single',
+        data: {
+          highlyRated: sortedDishes.slice(0, midPoint),
+          leastRated: sortedDishes.slice(midPoint).reverse() // reverse to show lowest scores
+        }
+      });
+    } else {
+      // Multiple types - group by type
+      const groupedData = processedData.reduce((acc, dish) => {
+        const type = dish.type;
+        if (!acc[type]) {
+          acc[type] = [];
+        }
+        acc[type].push(dish);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Sort each category by score
+      setResults({
+        type: 'multiple',
+        data: {
+          appetizers: (groupedData?.appetizer || []).sort((a, b) => b.score - a.score),
+          mains: (groupedData?.main || []).sort((a, b) => b.score - a.score),
+          desserts: (groupedData?.dessert || []).sort((a, b) => b.score - a.score),
+        }
+      });
+    }
   };
 
   useEffect(() => {
@@ -179,7 +214,7 @@ const UnifiedSearch = () => {
         <Button onClick={handleSearch} className="md:w-24">Search</Button>
       </div>
 
-      {results.type && (
+      {results.type === 'multiple' && (
         <div className="grid grid-cols-3 gap-6">
           <ResultsColumn 
             title="Appetizers" 
@@ -194,6 +229,21 @@ const UnifiedSearch = () => {
           <ResultsColumn 
             title="Desserts" 
             items={results.data.desserts} 
+            onVote={handleVote}
+          />
+        </div>
+      )}
+
+      {results.type === 'single' && (
+        <div className="grid grid-cols-2 gap-6">
+          <ResultsColumn 
+            title="Highly Rated" 
+            items={results.data.highlyRated} 
+            onVote={handleVote}
+          />
+          <ResultsColumn 
+            title="Least Rated" 
+            items={results.data.leastRated} 
             onVote={handleVote}
           />
         </div>

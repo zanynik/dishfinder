@@ -8,6 +8,7 @@ interface DishWithScore {
   id: number;
   dish: string;
   restaurant: string;
+  city: string;
   upvotes: number;
   downvotes: number;
   score: number;
@@ -33,7 +34,9 @@ const ResultsColumn = ({ title, items, onVote }: ResultsColumnProps) => {
               className="p-4 bg-card rounded-lg shadow-sm hover:shadow-md transition-shadow"
             >
               <h3 className="font-semibold text-foreground">{item.dish}</h3>
-              <p className="text-sm text-muted-foreground mb-2">{item.restaurant}</p>
+              <p className="text-sm text-muted-foreground">
+                {item.restaurant} • {item.city}
+              </p>
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-2">
                   <Button
