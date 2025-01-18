@@ -204,47 +204,59 @@ const UnifiedSearch = () => {
   const fetchAndStoreMenuItems = async () => {
     const query = buildApiQuery();
     const url = `https://www.dolthub.com/api/v1alpha1/dolthub/menus/master?q=${query}`;
-
+  
     try {
       const response = await fetch(url);
       const data = await response.json();
-
+  
       if (data.rows && data.rows.length > 0) {
         for (const row of data.rows) {
+          // Convert dish name and restaurant name to title case
+          const toTitleCase = (str: string) => {
+            return str.replace(/\w\S*/g, (word) => {
+              return word.charAt(0).toUpperCase() + word.substr(1).toLowerCase();
+            });
+          };
+  
+          const dishName = toTitleCase(row.name);
+          const restaurantName = toTitleCase(row.restaurant_name);
+  
+          // Generate random upvotes and downvotes between 0 and 100
+          const randomUpvotes = Math.floor(Math.random() * 101); // Random integer from 0 to 100
+          const randomDownvotes = Math.floor(Math.random() * 51); // Random integer from 0 to 100
+  
           // First, insert or get restaurant
           const { data: restaurantData, error: restaurantError } = await supabase
-            .from('restaurants')
+            .from("restaurants")
             .upsert(
               {
-                name: row.restaurant_name,
-                city: row.identifier || 'Unknown'
+                name: restaurantName,
+                city: row.identifier || "Unknown",
               },
-              { onConflict: 'name' }
+              { onConflict: "name" }
             )
             .select()
             .single();
-
+  
           if (restaurantError) {
-            console.error('Error inserting restaurant:', restaurantError);
+            console.error("Error inserting restaurant:", restaurantError);
             continue;
           }
-
+  
           // Then, insert the dish with restaurant_id
-          const { error: dishError } = await supabase
-            .from('dishes')
-            .upsert({
-              name: row.name,
-              type: row.price_usd < 10 ? "appetizer" : "main",
-              restaurant_id: restaurantData.id,
-              upvotes: 0,
-              downvotes: 0
-            });
-
+          const { error: dishError } = await supabase.from("dishes").upsert({
+            name: dishName,
+            type: row.price_usd < 10 ? "appetizer" : "main",
+            restaurant_id: restaurantData.id,
+            upvotes: randomUpvotes, // Set random upvotes
+            downvotes: randomDownvotes, // Set random downvotes
+          });
+  
           if (dishError) {
-            console.error('Error inserting dish:', dishError);
+            console.error("Error inserting dish:", dishError);
           }
         }
-
+  
         toast({
           title: "Success",
           description: "Data from API has been stored",
@@ -266,13 +278,14 @@ const UnifiedSearch = () => {
 
   const handleSearch = async () => {
     const { dish, city, restaurant } = search;
-
+  
     // Fetch and store data from external API
     await fetchAndStoreMenuItems();
-
+  
     let query = supabase
-      .from('dishes')
-      .select(`
+      .from("dishes")
+      .select(
+        `
         id,
         name,
         type,
@@ -283,23 +296,24 @@ const UnifiedSearch = () => {
           name,
           city
         )
-      `);
-
+      `
+      );
+  
     // Build the query based on search criteria
     if (dish) {
-      query = query.ilike('name', `%${dish}%`);
+      query = query.ilike("name", `%${dish}%`);
     }
-    
+  
     if (city) {
-      query = query.ilike('restaurants.city', `%${city}%`);
+      query = query.ilike("restaurants.city", `%${city}%`);
     }
-    
+  
     if (restaurant) {
-      query = query.ilike('restaurants.name', `%${restaurant}%`);
+      query = query.ilike("restaurants.name", `%${restaurant}%`);
     }
   
     const { data: dishesData, error } = await query;
-
+  
     if (error) {
       toast({
         title: "Error",
@@ -308,33 +322,20 @@ const UnifiedSearch = () => {
       });
       return;
     }
-
+  
     const processedData = dishesData
-    ?.filter((dish) => dish.restaurants?.name && dish.restaurants?.city) // Filter out dishes without restaurant or city
-    .map((dish) => {
-      // Convert dish name and restaurant name to title case
-      const toTitleCase = (str: string) => {
-        return str.replace(/\w\S*/g, (word) => {
-          return word.charAt(0).toUpperCase() + word.substr(1).toLowerCase();
-        });
-      };
-  
-      // Generate random upvotes and downvotes between 0 and 100
-      const randomUpvotes = Math.floor(Math.random() * 101); // Random integer from 0 to 100
-      const randomDownvotes = Math.floor(Math.random() * 50); // Random integer from 0 to 100
-  
-      return {
+      ?.filter((dish) => dish.restaurants?.name && dish.restaurants?.city) // Filter out dishes without restaurant or city
+      .map((dish) => ({
         id: dish.id,
-        dish: toTitleCase(dish.name), // Convert dish name to title case
-        type: dish.type?.toLowerCase() || 'other',
-        restaurant: toTitleCase(dish.restaurants.name), // Convert restaurant name to title case
-        city: toTitleCase(dish.restaurants.city),
-        upvotes: randomUpvotes, // Set random upvotes
-        downvotes: randomDownvotes, // Set random downvotes
-        score: randomUpvotes - randomDownvotes, // Calculate score
-      };
-    });
-
+        dish: dish.name, // Already in title case
+        type: dish.type?.toLowerCase() || "other",
+        restaurant: dish.restaurants.name, // Already in title case
+        city: dish.restaurants.city, // Already in title case
+        upvotes: dish.upvotes || 0,
+        downvotes: dish.downvotes || 0,
+        score: (dish.upvotes || 0) - (dish.downvotes || 0),
+      }));
+  
     if (!processedData?.length) {
       setResults({ type: null, data: null });
       toast({
@@ -343,21 +344,21 @@ const UnifiedSearch = () => {
       });
       return;
     }
-
+  
     // Get unique types from results
-    const uniqueTypes = [...new Set(processedData.map(dish => dish.type))];
-
+    const uniqueTypes = [...new Set(processedData.map((dish) => dish.type))];
+  
     if (uniqueTypes.length === 1) {
       // Single type - split into high/low rated
       const sortedDishes = [...processedData].sort((a, b) => b.score - a.score);
       const midPoint = Math.ceil(sortedDishes.length / 2);
-      
+  
       setResults({
-        type: 'single',
+        type: "single",
         data: {
           highlyRated: sortedDishes.slice(0, midPoint),
-          leastRated: sortedDishes.slice(midPoint).reverse() // reverse to show lowest scores
-        }
+          leastRated: sortedDishes.slice(midPoint).reverse(), // reverse to show lowest scores
+        },
       });
     } else {
       // Multiple types - group by type
@@ -369,15 +370,15 @@ const UnifiedSearch = () => {
         acc[type].push(dish);
         return acc;
       }, {} as Record<string, any[]>);
-
+  
       // Sort each category by score
       setResults({
-        type: 'multiple',
+        type: "multiple",
         data: {
           appetizers: (groupedData?.appetizer || []).sort((a, b) => b.score - a.score),
           mains: (groupedData?.main || []).sort((a, b) => b.score - a.score),
           desserts: (groupedData?.dessert || []).sort((a, b) => b.score - a.score),
-        }
+        },
       });
     }
   };
