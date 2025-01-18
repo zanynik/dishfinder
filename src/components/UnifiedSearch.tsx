@@ -31,10 +31,30 @@ const UnifiedSearch = () => {
   }>({ type: null, data: null });
 
   const handleVote = async (dishId: number, isUpvote: boolean) => {
+    // First, get current vote counts
+    const { data: currentDish } = await supabase
+      .from('dishes')
+      .select('upvotes, downvotes')
+      .eq('id', dishId)
+      .single();
+
+    if (!currentDish) {
+      toast({
+        title: "Error",
+        description: "Dish not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Calculate new vote count
+    const newCount = (currentDish[isUpvote ? 'upvotes' : 'downvotes'] || 0) + 1;
+
+    // Update the vote count
     const { error } = await supabase
       .from('dishes')
       .update({
-        [isUpvote ? 'upvotes' : 'downvotes']: supabase.rpc('increment'),
+        [isUpvote ? 'upvotes' : 'downvotes']: newCount,
       })
       .eq('id', dishId);
 
