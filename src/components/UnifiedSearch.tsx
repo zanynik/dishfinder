@@ -1,9 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import ResultsColumn from "./ResultsColumn";
-import { sampleData } from "@/lib/sampleData";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Dish {
+  id: number;
+  name: string;
+  type: string;
+  restaurant_id: number;
+  upvotes: number;
+  downvotes: number;
+  restaurants: {
+    name: string;
+    city: string;
+  };
+}
 
 const UnifiedSearch = () => {
   const [search, setSearch] = useState({
@@ -17,42 +30,111 @@ const UnifiedSearch = () => {
     data: any;
   }>({ type: null, data: null });
 
-  const handleSearch = () => {
+  const handleVote = async (dishId: number, isUpvote: boolean) => {
+    const { error } = await supabase
+      .from('dishes')
+      .update({
+        [isUpvote ? 'upvotes' : 'downvotes']: supabase.rpc('increment'),
+      })
+      .eq('id', dishId);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update vote",
+        variant: "destructive",
+      });
+    } else {
+      handleSearch(); // Refresh results
+    }
+  };
+
+  const handleSearch = async () => {
     const { dish, city, restaurant } = search;
 
-    // Restaurant search requires city
-    if (restaurant && !city) {
+    let query = supabase
+      .from('dishes')
+      .select(`
+        id,
+        name,
+        type,
+        upvotes,
+        downvotes,
+        restaurants (
+          name,
+          city
+        )
+      `);
+
+    if (restaurant && city) {
+      query = query
+        .eq('restaurants.name', restaurant)
+        .eq('restaurants.city', city);
+    } else if (dish) {
+      query = query.ilike('name', `%${dish}%`);
+    } else if (city) {
+      query = query.eq('restaurants.city', city);
+    }
+
+    const { data: dishesData, error } = await query;
+
+    if (error) {
       toast({
-        title: "City Required",
-        description: "Please enter a city name when searching for a restaurant.",
+        title: "Error",
+        description: "Failed to fetch results",
         variant: "destructive",
       });
       return;
     }
 
-    // Determine search type and fetch results
-    if (restaurant && city) {
-      const restaurantResults = sampleData.restaurants[restaurant.toLowerCase()] || {
-        appetizers: [],
-        mains: [],
-        desserts: [],
-      };
-      setResults({ type: "restaurant", data: restaurantResults });
-    } else if (dish) {
-      const dishResults = sampleData.dishes[dish.toLowerCase()] || {
-        top: [],
-        bottom: [],
-      };
-      setResults({ type: "dish", data: dishResults });
-    } else if (city) {
-      const cityResults = sampleData.cities[city.toLowerCase()] || {
-        appetizers: [],
-        mains: [],
-        desserts: [],
-      };
-      setResults({ type: "city", data: cityResults });
-    }
+    const processedData = dishesData?.map((dish: Dish) => ({
+      id: dish.id,
+      dish: dish.name,
+      restaurant: dish.restaurants.name,
+      upvotes: dish.upvotes,
+      downvotes: dish.downvotes,
+      score: dish.upvotes - dish.downvotes,
+    }));
+
+    const groupedData = processedData?.reduce((acc: any, dish: any) => {
+      if (!acc[dish.type]) {
+        acc[dish.type] = [];
+      }
+      acc[dish.type].push(dish);
+      return acc;
+    }, {});
+
+    setResults({
+      type: restaurant ? 'restaurant' : city ? 'city' : 'dish',
+      data: {
+        appetizers: (groupedData?.appetizer || []).sort((a: any, b: any) => b.score - a.score),
+        mains: (groupedData?.main || []).sort((a: any, b: any) => b.score - a.score),
+        desserts: (groupedData?.dessert || []).sort((a: any, b: any) => b.score - a.score),
+      },
+    });
   };
+
+  // Set up real-time subscription for vote updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'dishes'
+        },
+        () => {
+          handleSearch(); // Refresh results when votes change
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [search]); // Resubscribe when search params change
 
   return (
     <div className="space-y-6">
@@ -79,19 +161,22 @@ const UnifiedSearch = () => {
       </div>
 
       {results.type && (
-        <div className={`grid ${results.type === 'dish' ? 'grid-cols-2' : 'grid-cols-3'} gap-6`}>
-          {results.type === 'dish' ? (
-            <>
-              <ResultsColumn title="Top Rated" items={results.data.top} />
-              <ResultsColumn title="Least Rated" items={results.data.bottom} />
-            </>
-          ) : (
-            <>
-              <ResultsColumn title="Appetizers" items={results.data.appetizers} />
-              <ResultsColumn title="Main Course" items={results.data.mains} />
-              <ResultsColumn title="Desserts" items={results.data.desserts} />
-            </>
-          )}
+        <div className="grid grid-cols-3 gap-6">
+          <ResultsColumn 
+            title="Appetizers" 
+            items={results.data.appetizers} 
+            onVote={handleVote}
+          />
+          <ResultsColumn 
+            title="Main Course" 
+            items={results.data.mains} 
+            onVote={handleVote}
+          />
+          <ResultsColumn 
+            title="Desserts" 
+            items={results.data.desserts} 
+            onVote={handleVote}
+          />
         </div>
       )}
     </div>
