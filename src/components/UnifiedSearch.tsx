@@ -31,7 +31,6 @@ const UnifiedSearch = () => {
   }>({ type: null, data: null });
 
   const handleVote = async (dishId: number, isUpvote: boolean) => {
-    // First, get current vote counts
     const { data: currentDish } = await supabase
       .from('dishes')
       .select('upvotes, downvotes')
@@ -47,10 +46,8 @@ const UnifiedSearch = () => {
       return;
     }
 
-    // Calculate new vote count
     const newCount = (currentDish[isUpvote ? 'upvotes' : 'downvotes'] || 0) + 1;
 
-    // Update the vote count
     const { error } = await supabase
       .from('dishes')
       .update({
@@ -65,7 +62,7 @@ const UnifiedSearch = () => {
         variant: "destructive",
       });
     } else {
-      handleSearch(); // Refresh results
+      handleSearch();
     }
   };
 
@@ -80,20 +77,23 @@ const UnifiedSearch = () => {
         type,
         upvotes,
         downvotes,
-        restaurants (
+        restaurants!inner (
           name,
           city
         )
       `);
 
-    if (restaurant && city) {
-      query = query
-        .eq('restaurants.name', restaurant)
-        .eq('restaurants.city', city);
-    } else if (dish) {
+    // Build the query based on search criteria
+    if (dish) {
       query = query.ilike('name', `%${dish}%`);
-    } else if (city) {
-      query = query.eq('restaurants.city', city);
+    }
+    
+    if (city) {
+      query = query.ilike('restaurants.city', `%${city}%`);
+    }
+    
+    if (restaurant) {
+      query = query.ilike('restaurants.name', `%${restaurant}%`);
     }
 
     const { data: dishesData, error } = await query;
@@ -134,7 +134,6 @@ const UnifiedSearch = () => {
     });
   };
 
-  // Set up real-time subscription for vote updates
   useEffect(() => {
     const channel = supabase
       .channel('schema-db-changes')
@@ -146,7 +145,7 @@ const UnifiedSearch = () => {
           table: 'dishes'
         },
         () => {
-          handleSearch(); // Refresh results when votes change
+          handleSearch();
         }
       )
       .subscribe();
@@ -154,7 +153,7 @@ const UnifiedSearch = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [search]); // Resubscribe when search params change
+  }, [search]);
 
   return (
     <div className="space-y-6">
