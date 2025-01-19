@@ -23,7 +23,12 @@ export const buildApiQuery = (search: {
     query += ` AND restaurant_name LIKE '%${restaurant}%'`;
   }
 
-  query += ` LIMIT 10`;
+  // Generate a random offset
+  const randomOffset = Math.floor(Math.random() * 100);
+
+  // Fetch 10 rows starting from the random offset
+  query += ` LIMIT 15 OFFSET ${randomOffset}`;
+
   return encodeURIComponent(query);
 };
 

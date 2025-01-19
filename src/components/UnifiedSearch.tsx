@@ -195,8 +195,8 @@ const UnifiedSearch = () => {
           const cityName = toTitleCase(row.identifier);
 
           // Generate random upvotes and downvotes between 0 and 100
-          const randomUpvotes = Math.floor(Math.random() * 101); // Random integer from 0 to 100
-          const randomDownvotes = Math.floor(Math.random() * 101); // Random integer from 0 to 100
+          const randomUpvotes = Math.floor(Math.random() * 20); // Random integer from 0 to 100
+          const randomDownvotes = Math.floor(Math.random() * 10); // Random integer from 0 to 100
 
           // First, insert or get restaurant
           const { data: restaurantData, error: restaurantError } = await supabase
