@@ -213,13 +213,18 @@ const UnifiedSearch = () => {
         for (const row of data.rows) {
           // Convert dish name and restaurant name to title case
           const toTitleCase = (str: string) => {
-            return str.replace(/\w\S*/g, (word) => {
+            // Remove all numbers from the string
+            const strippedStr = str.replace(/\d+/g, "");
+          
+            // Convert to title case
+            return strippedStr.replace(/\w\S*/g, (word) => {
               return word.charAt(0).toUpperCase() + word.substr(1).toLowerCase();
             });
           };
   
           const dishName = toTitleCase(row.name);
           const restaurantName = toTitleCase(row.restaurant_name);
+          const cityName = toTitleCase(row.identifier);
   
           // Generate random upvotes and downvotes between 0 and 100
           const randomUpvotes = Math.floor(Math.random() * 101); // Random integer from 0 to 100
@@ -231,7 +236,7 @@ const UnifiedSearch = () => {
             .upsert(
               {
                 name: restaurantName,
-                city: row.identifier || "Unknown",
+                city: cityName || "Unknown",
               },
               { onConflict: "name" }
             )
