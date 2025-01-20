@@ -34,13 +34,14 @@ const UnifiedSearch = () => {
     setSearch({ ...search, [field]: e.target.value });
   };
 
-  const handleVote = async (dishId: number, isUpvote: boolean) => {
+  const handleVote = async (dishId: number, isUpvote: boolean, event: React.MouseEvent) => {
+  
     const { data: currentDish } = await supabase
       .from("dishes")
       .select("upvotes, downvotes")
       .eq("id", dishId)
       .single();
-
+  
     if (!currentDish) {
       toast({
         title: "Error",
@@ -49,16 +50,16 @@ const UnifiedSearch = () => {
       });
       return;
     }
-
+  
     const newCount = (currentDish[isUpvote ? "upvotes" : "downvotes"] || 0) + 1;
-
+  
     const { error } = await supabase
       .from("dishes")
       .update({
         [isUpvote ? "upvotes" : "downvotes"]: newCount,
       })
       .eq("id", dishId);
-
+  
     if (error) {
       toast({
         title: "Error",
@@ -66,7 +67,69 @@ const UnifiedSearch = () => {
         variant: "destructive",
       });
     } else {
-      handleSearch();
+      // Update the frontend state without refreshing the page
+      setResults((prevResults) => {
+        if (!prevResults.data) return prevResults; // If data is null, return as is
+  
+        if (prevResults.type === "multiple") {
+          // Update for "multiple" type
+          const updatedData = {
+            appetizers: prevResults.data.appetizers.map((dish) =>
+              dish.id === dishId
+                ? {
+                    ...dish,
+                    upvotes: isUpvote ? newCount : dish.upvotes,
+                    downvotes: !isUpvote ? newCount : dish.downvotes,
+                  }
+                : dish
+            ),
+            mains: prevResults.data.mains.map((dish) =>
+              dish.id === dishId
+                ? {
+                    ...dish,
+                    upvotes: isUpvote ? newCount : dish.upvotes,
+                    downvotes: !isUpvote ? newCount : dish.downvotes,
+                  }
+                : dish
+            ),
+            desserts: prevResults.data.desserts.map((dish) =>
+              dish.id === dishId
+                ? {
+                    ...dish,
+                    upvotes: isUpvote ? newCount : dish.upvotes,
+                    downvotes: !isUpvote ? newCount : dish.downvotes,
+                  }
+                : dish
+            ),
+          };
+          return { ...prevResults, data: updatedData };
+        } else if (prevResults.type === "single") {
+          // Update for "single" type
+          const updatedData = {
+            highlyRated: prevResults.data.highlyRated.map((dish) =>
+              dish.id === dishId
+                ? {
+                    ...dish,
+                    upvotes: isUpvote ? newCount : dish.upvotes,
+                    downvotes: !isUpvote ? newCount : dish.downvotes,
+                  }
+                : dish
+            ),
+            leastRated: prevResults.data.leastRated.map((dish) =>
+              dish.id === dishId
+                ? {
+                    ...dish,
+                    upvotes: isUpvote ? newCount : dish.upvotes,
+                    downvotes: !isUpvote ? newCount : dish.downvotes,
+                  }
+                : dish
+            ),
+          };
+          return { ...prevResults, data: updatedData };
+        }
+  
+        return prevResults; // Return unchanged if type is not handled
+      });
     }
   };
 

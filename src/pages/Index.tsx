@@ -15,10 +15,10 @@ const Index = () => {
         <div className="max-w-6xl mx-auto">
           <header className="text-center mb-12">
             <h1 className="text-4xl font-bold text-[#403E43] mb-4">
-              Global Food Explorer
+              DishFinder
             </h1>
             <p className="text-[#1A1F2C]">
-              Discover the best dishes from restaurants around the world
+              Discover the best dishes from restaurants around the world (Currently, US only)
             </p>
           </header>
 

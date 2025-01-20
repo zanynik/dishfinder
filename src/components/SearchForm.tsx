@@ -19,13 +19,13 @@ export const SearchForm = ({ search, onSearchChange, onSearch }: SearchFormProps
         value={search.dish}
         onChange={(e) => onSearchChange(e, "dish")}
         className="flex-1"
-      />
+      /> OR
       <Input
-        placeholder="Enter city name..."
+        placeholder="Enter (USA) city name..."
         value={search.city}
         onChange={(e) => onSearchChange(e, "city")}
         className="flex-1"
-      />
+      /> OR 
       <Input
         placeholder="Enter restaurant name..."
         value={search.restaurant}
